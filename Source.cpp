@@ -1,8 +1,5 @@
 ﻿// Description: PDFの描画テスト
 
-#define UNICODE
-#define _UNICODE
-
 #include <cstdlib>
 
 #include <ppltasks.h>
