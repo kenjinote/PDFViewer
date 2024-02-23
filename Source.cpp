@@ -19,6 +19,7 @@
 #include <atlbase.h>
 #include <atlwin.h>
 #include <atltypes.h>
+#include <string>
 
 #pragma comment(lib, "shcore.lib")
 #pragma comment(lib, "runtimeobject.lib")
@@ -45,6 +46,10 @@ public:
         MESSAGE_HANDLER(WM_PAINT, OnPaint) //MSG_WM_PAINT(OnPaint)
         MESSAGE_HANDLER(WM_CREATE, OnCreate) //MSG_WM_CREATE(OnCreate)
         MESSAGE_HANDLER(WM_DESTROY, OnDestroy) //MSG_WM_DESTROY(OnDestroy)
+        MESSAGE_HANDLER(WM_DROPFILES, OnDropFiles)
+        MESSAGE_HANDLER(WM_KEYDOWN, OnKeyDown);
+        MESSAGE_HANDLER(WM_LBUTTONDOWN, OnLButtonDown);
+        MESSAGE_HANDLER(WM_MOUSEWHEEL, OnMouseWheel);
     END_MSG_MAP()
 
 private:
@@ -85,6 +90,126 @@ private:
         return 0;
     }
 
+    LRESULT OnDropFiles(UINT, WPARAM wParam, LPARAM, BOOL&)
+    {
+        HDROP hDrop = reinterpret_cast<HDROP>(wParam);
+        UINT nFiles = DragQueryFile(hDrop, 0xFFFFFFFF, nullptr, 0);
+        if (nFiles > 0)
+        {
+            WCHAR szFilePath[MAX_PATH];
+            DragQueryFile(hDrop, 0, szFilePath, MAX_PATH);
+            LoadPdf(szFilePath);
+        }
+        DragFinish(hDrop);
+        return 0;
+    }
+
+    LRESULT OnMouseWheel(UINT, WPARAM wParam, LPARAM, BOOL&)
+    {
+        bool pageChanged = false;
+        if (GET_WHEEL_DELTA_WPARAM(wParam) > 0)
+		{
+			if (m_page > 0) {
+				--m_page;
+                pageChanged = true;
+			}
+		}
+        else
+        {
+            if (m_page < m_pageCount - 1) {
+				++m_page;
+                pageChanged = true;
+			}
+		}
+        if (pageChanged)
+        {
+			auto s = std::to_wstring(m_page + 1) + L"/" + std::to_wstring(m_pageCount);
+			SetWindowText(s.c_str());
+			Invalidate();
+		}
+		return 0;
+    }
+
+    LRESULT OnLButtonDown(UINT, WPARAM wParam, LPARAM, BOOL&)
+    {
+        RECT rcLeft;
+        RECT rcRight;
+        GetClientRect(&rcLeft);
+        GetClientRect(&rcRight);
+        rcLeft.right = rcLeft.right / 2;
+        rcRight.left = rcRight.right / 2;
+        POINT pt;
+        GetCursorPos(&pt);
+        ScreenToClient(&pt);
+        bool pageChanged = false;
+        if (PtInRect(&rcLeft, pt))
+		{
+            if (m_page > 0) {
+				--m_page;
+                pageChanged = true;
+			}
+		}
+        else if (PtInRect(&rcRight, pt)) {
+            if (m_page < m_pageCount - 1) {
+				++m_page;
+                pageChanged = true;
+			}
+        }
+        if (pageChanged)
+        {
+			auto s = std::to_wstring(m_page + 1) + L"/" + std::to_wstring(m_pageCount);
+			SetWindowText(s.c_str());
+			Invalidate();
+		}
+        return 0;
+    }
+
+    LRESULT OnKeyDown(UINT, WPARAM wParam, LPARAM, BOOL&)
+    {
+        bool pageChanged = false;
+        switch (wParam)
+        {
+        case VK_PRIOR:
+        case VK_UP:
+        case VK_LEFT:
+            if (m_page > 0) {
+                --m_page;
+                pageChanged = true;
+            }
+            break;
+        case VK_NEXT:
+        case VK_DOWN:
+        case VK_RIGHT:
+            if (m_page < m_pageCount - 1) {
+                ++m_page;
+                pageChanged = true;
+            }
+            break;
+        case VK_HOME:
+            if (m_page > 0) {
+				m_page = 0;
+				pageChanged = true;
+			}
+            break;
+        case VK_END:
+            if (m_page < m_pageCount - 1) {
+                m_page = m_pageCount - 1;
+                pageChanged = true;
+            }
+            break;
+        case VK_ESCAPE:
+            PostMessage(WM_CLOSE);
+            break;
+        }
+        if (pageChanged)
+        {
+            auto s = std::to_wstring(m_page + 1) + L"/" + std::to_wstring(m_pageCount);
+            SetWindowText(s.c_str());
+            Invalidate();
+		}
+        return 0;
+    }
+
     void OnRender()
     {
         resource.m_d2dDeviceContext->BeginDraw();
@@ -109,8 +234,23 @@ private:
         resource.m_d2dDeviceContext->Clear(D2D1::ColorF(D2D1::ColorF::White));
         if (m_document != nullptr)
         {
-            auto pdfPage = m_document->GetPage(0);
+            D2D1_SIZE_F size = resource.m_d2dDeviceContext->GetSize();
+
+            auto pdfPage = m_document->GetPage(m_page);
+
+            auto pdf_size = pdfPage->Size;
+            float scale = min(size.width / pdf_size.Width, size.height / pdf_size.Height);
+            D2D1_RECT_F destRect = D2D1::RectF(
+                (size.width - pdf_size.Width * scale) / 2,
+                (size.height - pdf_size.Height * scale) / 2,
+                (size.width + pdf_size.Width * scale) / 2,
+                (size.height + pdf_size.Height * scale) / 2);
+
             auto params = PdfRenderParams();
+
+            resource.m_d2dDeviceContext->SetTransform(
+                D2D1::Matrix3x2F::Scale(scale, scale) * D2D1::Matrix3x2F::Translation(destRect.left, destRect.top));
+
             resource.m_pdfRenderer->RenderPageToDeviceContext(
                 reinterpret_cast<IUnknown*>(pdfPage),
                 resource.m_d2dDeviceContext.Get(),
@@ -125,7 +265,7 @@ private:
             return -1;
         if (FAILED(CreateDeviceResources()))
             return -1;
-        LoadPdf();
+        DragAcceptFiles(TRUE);
         return 0;
     }
 
@@ -267,11 +407,11 @@ private:
         return S_OK;
     }
 
-    HRESULT LoadPdf()
+    HRESULT LoadPdf(LPCWSTR lpszFilePath)
     {
         IRandomAccessStream^ s;
         auto hr = CreateRandomAccessStreamOnFile(
-            L"sample.pdf",
+            lpszFilePath,
             static_cast<DWORD>(FileAccessMode::Read),
             IID_PPV_ARGS(reinterpret_cast<
                 ABI::Windows::Storage::Streams::IRandomAccessStream**>(&s)));
@@ -286,6 +426,8 @@ private:
             PdfDocument::LoadFromStreamAsync(s));
         asyncTask.then([this](PdfDocument^ doc)
             {
+                m_page = 0;
+                m_pageCount = doc->PageCount;
                 m_document = doc;
                 Invalidate();
             });
@@ -317,21 +459,22 @@ private:
     } resource;
     // その他
     PdfDocument^ m_document;
+    int m_page;
+    int m_pageCount;
 };
 
 [STAThread]
-int WINAPI wWinMain(HINSTANCE, HINSTANCE, LPWSTR, int cmdShow)
+int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nShowCmd)
 {
-    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    (void)CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
     TestWindow wnd;
-    if (!wnd.Create(nullptr, ATL::CWindow::rcDefault,
-        TEXT("Hello, world"), WS_OVERLAPPEDWINDOW))
+    if (!wnd.Create(nullptr, ATL::CWindow::rcDefault, L"PDF Viewer", WS_OVERLAPPEDWINDOW))
     {
         return 0;
     }
 
-    wnd.ShowWindow(cmdShow);
+    wnd.ShowWindow(nShowCmd);
     wnd.UpdateWindow();
 
     MSG msg;
