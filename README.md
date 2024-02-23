@@ -6,5 +6,5 @@
 
 ![image](https://github.com/kenjinote/DrawPDF/assets/2605401/ccee53fe-24a0-445b-ba77-cff9fa02113c)
 
-追加の #using ディレクトリ：%(AdditionalUsingDirectories)
+追加の #using ディレクトリ：%(AdditionalUsingDirectories)  
 Windows ランタイム拡張機能の使用：はい
