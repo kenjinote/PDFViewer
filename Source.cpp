@@ -111,6 +111,7 @@ private:
 			LoadPdf(szFilePath);
 		}
 		DragFinish(hDrop);
+		SetForegroundWindow(m_hWnd);
 		return 0;
 	}
 
