@@ -1,5 +1,5 @@
-# DrawPDF
-![image](https://github.com/kenjinote/DrawPDF/assets/2605401/2c5669f6-5b94-4e77-8e18-13b4183fd5be)
+# PDFViewer
+![image](https://github.com/kenjinote/PDFViewer/assets/2605401/c9c5ef7f-bfee-4553-90a8-514064d3529a)
 
 ## 概要
 PDFを閲覧するためのアプリです。Windows OS標準の機能を使っているため、軽量で高速に動作します。
