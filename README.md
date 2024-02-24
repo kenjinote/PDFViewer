@@ -2,7 +2,7 @@
 ![image](https://github.com/kenjinote/DrawPDF/assets/2605401/2c5669f6-5b94-4e77-8e18-13b4183fd5be)
 
 ## 概要
-PDFを閲覧するためのアプリです。
+PDFを閲覧するためのアプリです。Windows OS標準の機能を使っているため、軽量で高速に動作します。
 
 ## 操作方法
 - PDFファイルを開く
