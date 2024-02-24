@@ -268,7 +268,14 @@ private:
 			}
 			break;
 		case VK_ESCAPE:
-			PostMessage(WM_CLOSE);
+			if (m_fullScreen)
+			{
+				SendMessage(WM_KEYDOWN, VK_F11, 0);
+			}
+			else
+			{
+				PostMessage(WM_CLOSE);
+			}
 			break;
 		case VK_F11:
 			if (m_fullScreen)
