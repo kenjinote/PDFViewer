@@ -20,6 +20,7 @@
 #include <atlwin.h>
 #include <atltypes.h>
 #include <string>
+#include "resource.h"
 
 #pragma comment(lib, "shcore.lib")
 #pragma comment(lib, "runtimeobject.lib")
@@ -39,21 +40,31 @@ class TestWindow
 	: public ATL::CWindowImpl<TestWindow>
 {
 public:
-	DECLARE_WND_CLASS_EX(L"Test Window Class", 0, -1);
+	static ATL::CWndClassInfo& GetWndClassInfo()
+	{
+		static ATL::CWndClassInfo wc = 
+		{ 
+			{
+				sizeof(WNDCLASSEX), 0, StartWindowProc, 0, 0, NULL, LoadIcon(_AtlBaseModule.GetResourceInstance(), MAKEINTRESOURCE(IDI_ICON1)), NULL, 0, NULL, L"PDF Viewer", NULL
+			},
+			NULL, NULL, IDC_ARROW, TRUE, 0, _T("")
+		};
+		return wc;
+	}
 
 	BEGIN_MSG_MAP(TestWindow)
-		MESSAGE_HANDLER(WM_SIZE, OnSize) //MSG_WM_SIZE(OnSize)
-		MESSAGE_HANDLER(WM_PAINT, OnPaint) //MSG_WM_PAINT(OnPaint)
-		MESSAGE_HANDLER(WM_CREATE, OnCreate) //MSG_WM_CREATE(OnCreate)
-		MESSAGE_HANDLER(WM_DESTROY, OnDestroy) //MSG_WM_DESTROY(OnDestroy)
+		MESSAGE_HANDLER(WM_SIZE, OnSize)
+		MESSAGE_HANDLER(WM_PAINT, OnPaint)
+		MESSAGE_HANDLER(WM_CREATE, OnCreate)
+		MESSAGE_HANDLER(WM_DESTROY, OnDestroy)
 		MESSAGE_HANDLER(WM_DROPFILES, OnDropFiles)
-		MESSAGE_HANDLER(WM_KEYDOWN, OnKeyDown);
-	MESSAGE_HANDLER(WM_LBUTTONDOWN, OnLButtonDown);
-	MESSAGE_HANDLER(WM_MOUSEWHEEL, OnMouseWheel);
+		MESSAGE_HANDLER(WM_KEYDOWN, OnKeyDown)
+		MESSAGE_HANDLER(WM_LBUTTONDOWN, OnLButtonDown)
+		MESSAGE_HANDLER(WM_MOUSEWHEEL, OnMouseWheel)
+		MESSAGE_HANDLER(WM_TIMER, OnTimer)
 	END_MSG_MAP()
 
 private:
-	//void OnSize(UINT type, SIZE size)
 	LRESULT OnSize(UINT, WPARAM type, LPARAM lp, BOOL&)
 	{
 		SIZE size{ GET_X_LPARAM(lp), GET_Y_LPARAM(lp) };
@@ -82,7 +93,6 @@ private:
 		return 0;
 	}
 
-	//void OnPaint(HDC)
 	LRESULT OnPaint(UINT, WPARAM, LPARAM, BOOL&)
 	{
 		OnRender();
@@ -132,6 +142,22 @@ private:
 
 	LRESULT OnLButtonDown(UINT, WPARAM wParam, LPARAM, BOOL&)
 	{
+		if (m_document == nullptr) {
+			WCHAR szFilePath[MAX_PATH] = { 0 };
+			OPENFILENAME ofn = { 0 };
+			ofn.lStructSize = sizeof(OPENFILENAME);
+			ofn.hwndOwner = m_hWnd;
+			ofn.lpstrFilter = TEXT("ﾕｰｻﾞｰ指定\0*.*\0PDFﾌｧｲﾙ (*.pdf)\0*.pdf\0すべてのﾌｧｲﾙ (*.*)\0*.*\0\0");
+			ofn.lpstrFile = szFilePath;
+			ofn.nMaxFile = MAX_PATH;
+			ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+			ofn.lpstrTitle = TEXT("ファイルを開く");
+			if (GetOpenFileName(&ofn))
+			{
+				LoadPdf(szFilePath);
+			}
+			return 0;
+		}
 		RECT rcLeft;
 		RECT rcRight;
 		GetClientRect(&rcLeft);
@@ -164,11 +190,55 @@ private:
 		return 0;
 	}
 
+	LRESULT OnTimer(UINT, WPARAM wParam, LPARAM, BOOL&)
+	{
+		KillTimer(0x1234);
+		if (m_input.size() > 0)
+		{
+			int page = _wtoi(m_input.c_str()) - 1;
+			if (page < 1) page = 0;
+			if (page >= m_pageCount) page = m_pageCount - 1;
+			m_page = page;
+			auto s = std::to_wstring(m_page + 1) + L"/" + std::to_wstring(m_pageCount);
+			SetWindowText(s.c_str());
+			Invalidate();
+			m_input = std::wstring();
+		}
+		return 0;
+	}
+
 	LRESULT OnKeyDown(UINT, WPARAM wParam, LPARAM, BOOL&)
 	{
 		bool pageChanged = false;
 		switch (wParam)
 		{
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':
+		case VK_NUMPAD0:
+		case VK_NUMPAD1:
+		case VK_NUMPAD2:
+		case VK_NUMPAD3:
+		case VK_NUMPAD4:
+		case VK_NUMPAD5:
+		case VK_NUMPAD6:
+		case VK_NUMPAD7:
+		case VK_NUMPAD8:
+		case VK_NUMPAD9:
+			KillTimer(0x1234);
+			if (VK_NUMPAD0 <= wParam && wParam <= VK_NUMPAD9)
+				m_input += static_cast<wchar_t>(wParam - VK_NUMPAD0 + L'0');
+			else
+				m_input += static_cast<wchar_t>(wParam);
+			SetTimer(0x1234, 500, nullptr);			
+			break;
 		case VK_PRIOR:
 		case VK_UP:
 		case VK_LEFT:
@@ -199,6 +269,27 @@ private:
 			break;
 		case VK_ESCAPE:
 			PostMessage(WM_CLOSE);
+			break;
+		case VK_F11:
+			if (m_fullScreen)
+			{
+				SetWindowLong(GWL_STYLE, m_dwStyle);
+				SetWindowPos(HWND_NOTOPMOST, &m_rcNormal, SWP_SHOWWINDOW);
+				m_fullScreen = false;
+			}
+			else
+			{
+				MONITORINFO monitor_info;
+				monitor_info.cbSize = sizeof(monitor_info);
+				GetMonitorInfo(MonitorFromWindow(m_hWnd, MONITOR_DEFAULTTONEAREST),
+					&monitor_info);
+				
+				m_dwStyle = GetWindowLong(GWL_STYLE);
+				SetWindowLong(GWL_STYLE, WS_POPUP);
+				GetWindowRect(&m_rcNormal);
+				SetWindowPos(HWND_TOPMOST, &monitor_info.rcMonitor, SWP_SHOWWINDOW);
+				m_fullScreen = true;
+			}
 			break;
 		}
 		if (pageChanged)
@@ -258,9 +349,10 @@ private:
 		}
 	}
 
-	//LRESULT OnCreate(const CREATESTRUCT*)
 	LRESULT OnCreate(UINT, WPARAM, LPARAM, BOOL&)
 	{
+		m_fullScreen = false;
+
 		if (FAILED(CreateDeviceIndependentResources()))
 			return -1;
 		if (FAILED(CreateDeviceResources()))
@@ -271,7 +363,6 @@ private:
 
 	void HandleDeviceLost()
 	{
-		//MessageBox(L"デバイスロストが発生しました。");
 		OutputDebugStringW(L"デバイスロストが発生しました。\r\n");
 
 		ReleaseDeviceResources();
@@ -280,7 +371,6 @@ private:
 		Invalidate();
 	}
 
-	//void OnDestroy()
 	LRESULT OnDestroy(UINT, WPARAM, LPARAM, BOOL&)
 	{
 		PostQuitMessage(0);
@@ -426,9 +516,12 @@ private:
 			PdfDocument::LoadFromStreamAsync(s));
 		asyncTask.then([this](PdfDocument^ doc)
 			{
+				m_input = std::wstring();
 				m_page = 0;
 				m_pageCount = doc->PageCount;
 				m_document = doc;
+				auto s = std::to_wstring(m_page + 1) + L"/" + std::to_wstring(m_pageCount);
+				SetWindowText(s.c_str());
 				Invalidate();
 			});
 		return S_OK;
@@ -461,6 +554,10 @@ private:
 	PdfDocument^ m_document;
 	int m_page;
 	int m_pageCount;
+	std::wstring m_input;
+	bool m_fullScreen;
+	RECT m_rcNormal;
+	DWORD m_dwStyle;
 };
 
 [STAThread]
