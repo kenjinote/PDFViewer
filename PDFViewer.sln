@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.25123.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "DrawPDF", "DrawPDF.vcxproj", "{D327119E-D676-4F87-B0AF-08D64AE6AC1A}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "PDFViewer", "PDFViewer.vcxproj", "{D327119E-D676-4F87-B0AF-08D64AE6AC1A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
