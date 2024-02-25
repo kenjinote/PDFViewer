@@ -366,6 +366,16 @@ private:
 		if (FAILED(CreateDeviceResources()))
 			return -1;
 		DragAcceptFiles(TRUE);
+		auto lpszCommandLine = GetCommandLineW();
+		int nArgc = 0;
+		auto lppArgv = CommandLineToArgvW(lpszCommandLine, &nArgc);
+		for (int i = 1; i < nArgc; i++) {
+			if (PathFileExists(lppArgv[i])) {
+				LoadPdf(lppArgv[i]);
+				break;
+			}
+		}
+		LocalFree(lppArgv);
 		return 0;
 	}
 
