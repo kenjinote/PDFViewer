@@ -1,6 +1,4 @@
-﻿// Description: PDFの描画テスト
-
-#include <cstdlib>
+﻿#include <cstdlib>
 
 #include <ppltasks.h>
 
